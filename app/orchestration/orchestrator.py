@@ -1,7 +1,7 @@
 from app.prefilter import compute_intent_scores
 from app.rag import retrieve
 from app.tools import get_stock_price, extract_ticker
-from app.config import RAG_CONFIG, HIGH_CONFIDENCE
+from app.core.config import RAG_CONFIG, HIGH_CONFIDENCE
 
 
 def get_dynamic_k(top1, top2):

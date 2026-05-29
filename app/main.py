@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from app.orchestrator import route_query
+from app.orchestration.orchestrator import route_query
 from app.prompt_builder import build_prompt
 from app.llm_client import generate_response
 
-from app.logger import Logger
+from app.core.logger import Logger
 
 app = FastAPI()
 
