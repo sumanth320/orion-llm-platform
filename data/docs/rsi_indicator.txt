@@ -1,0 +1,11 @@
+The Relative Strength Index (RSI) is a momentum indicator used in technical analysis.
+
+RSI measures the speed and magnitude of recent price changes.
+
+The RSI value ranges from 0 to 100.
+
+An RSI above 70 is often considered overbought.
+
+An RSI below 30 is often considered oversold.
+
+Traders use RSI to identify potential reversal points and market momentum.

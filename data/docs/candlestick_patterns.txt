@@ -1,0 +1,11 @@
+Candlestick charts are used to visualize price movements in financial markets.
+
+Each candlestick represents the open, high, low, and close prices for a time period.
+
+A bullish engulfing pattern may signal upward momentum.
+
+A bearish engulfing pattern may signal downward momentum.
+
+Doji candles indicate market indecision.
+
+Hammer patterns may indicate potential bullish reversals after a downtrend.

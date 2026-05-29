@@ -1,0 +1,11 @@
+Options are financial derivatives that give traders the right, but not the obligation, to buy or sell an asset at a predetermined price.
+
+A call option gives the holder the right to buy an asset.
+
+A put option gives the holder the right to sell an asset.
+
+Options contracts have expiration dates and strike prices.
+
+Traders use options for hedging, speculation, and income generation.
+
+Premium is the price paid to purchase an options contract.

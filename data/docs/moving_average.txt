@@ -1,0 +1,11 @@
+Moving averages are technical indicators used to smooth price action and identify market trends.
+
+A Simple Moving Average (SMA) calculates the average price over a specific number of periods.
+
+An Exponential Moving Average (EMA) gives more weight to recent prices and reacts faster to price changes.
+
+Traders use moving averages to identify trend direction, support and resistance levels, and crossover signals.
+
+A Golden Cross occurs when a short-term moving average crosses above a long-term moving average.
+
+A Death Cross occurs when a short-term moving average crosses below a long-term moving average.
