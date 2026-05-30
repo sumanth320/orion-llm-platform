@@ -1,6 +1,6 @@
-from app.prefilter import compute_intent_scores
-from app.rag import retrieve
-from app.tools import get_stock_price, extract_ticker
+from app.utils.prefilter import compute_intent_scores
+from app.retrieval.rag import retrieve
+from app.services.tools_services import get_stock_price, extract_ticker
 from app.core.config import RAG_CONFIG, HIGH_CONFIDENCE
 
 
