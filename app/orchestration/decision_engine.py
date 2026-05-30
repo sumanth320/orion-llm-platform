@@ -1,5 +1,6 @@
 from app.core.config import HIGH_CONFIDENCE, RAG_CONFIG
 from app.orchestration.prefilter import compute_intent_scores
+from app.orchestration.state import State
 
 
 def get_dynamic_k(top1, top2):
@@ -15,8 +16,10 @@ def is_rag_reliable(top1_score):
     return top1_score >= RAG_CONFIG["min_top1_score"]
 
 
-def choose_route(query: str):
+def choose_state(query: str):
+
     scores = compute_intent_scores(query)
+
     best_route = max(scores, key=scores.get)
     best_score = float(scores[best_route])
 
@@ -28,5 +31,10 @@ def choose_route(query: str):
         "high_confidence_threshold": float(HIGH_CONFIDENCE),
     }
 
-    return best_route, best_score, debug
+    state_mapping = {
+        "direct": State.DIRECT,
+        "rag": State.RAG,
+        "tool": State.TOOL,
+    }
 
+    return state_mapping[best_route], best_score, debug

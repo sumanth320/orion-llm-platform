@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.controllers.ask_controller import handle_ask
+from app.api.handlers.ask_handler import handle_ask
 from app.api.schemas.ask import AskRequest
 
 router = APIRouter()
