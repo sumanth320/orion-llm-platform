@@ -1,0 +1,20 @@
+# Secrets
+.env
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Python cache/artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Local vector DB storage
+chroma_db/
+
+# IDE / OS
+.idea/
+.DS_Store

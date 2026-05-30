@@ -15,12 +15,12 @@ def build_prompt(query: str, route: str, context=None):
 
     if route == "tool":
         tool_context = f"""
-Stock symbol: {context['ticker']}
-Current price: {context['price']} USD
-Daily change: {context['change']}
-Change percent: {context['change_percent']}
-Trading day: {context['raw_timestamp']}
-"""
+        Stock symbol: {context['ticker']}
+        Current price: {context['price']} USD
+        Daily change: {context['change']}
+        Change percent: {context['change_percent']}
+        Trading day: {context['raw_timestamp']}
+        """
 
         return [
             {
