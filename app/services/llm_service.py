@@ -1,10 +1,3 @@
-import ollama
+from app.services.llm.ollama_client import generate_response
 
-
-def generate_response(messages: list):
-    response = ollama.chat(
-        model="llama3:latest",
-        messages=messages
-    )
-
-    return response["message"]["content"]
+__all__ = ["generate_response"]
