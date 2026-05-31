@@ -10,3 +10,8 @@ RAG_CONFIG = {
 }
 
 HIGH_CONFIDENCE = 0.50
+
+OLLAMA_URL = os.getenv(
+    "OLLAMA_URL",
+    "http://localhost:11434"
+)
