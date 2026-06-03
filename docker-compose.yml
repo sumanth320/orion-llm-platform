@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  # The Storage Pillar: Our specialized vector database engine
+  orion-vector-db:
+    image: qdrant/qdrant:v1.9.0
+    container_name: orion-qdrant-container
+    ports:
+      - "6333:6333"  # Exposes the main database API port to your Mac
+      - "6334:6334"  # Exposes the internal gRPC port for fast communication
+    volumes:
+      - qdrant_storage_vault:/qdrant/storage
+    networks:
+      - orion-fabric-net
+
+# Declaring the infrastructure frameworks our service relies on
+volumes:
+  qdrant_storage_vault: # Keeps data intact across database restarts
+
+networks:
+  orion-fabric-net:
+    driver: bridge # Sets up the isolated virtual router on your host
