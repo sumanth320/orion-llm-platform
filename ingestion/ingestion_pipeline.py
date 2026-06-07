@@ -9,6 +9,44 @@ from dotenv import load_dotenv
 # Load the .env file from the root directory path
 load_dotenv()
 
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams
+
+# Initialize the Qdrant client pointing to your local Docker Compose host port
+# We use port 6333 here for administrative REST API configuration calls
+qdrant_client = QdrantClient(host="localhost", port=6333)
+
+COLLECTION_NAME = "financial_articles"
+
+
+def initialize_vector_store():
+    """Initializes the Qdrant database collection schema if it does not exist."""
+    print(f"Checking vector database for collection: '{COLLECTION_NAME}'...")
+
+    try:
+        # Check if the collection already exists in the container instance
+        if qdrant_client.collection_exists(collection_name=COLLECTION_NAME):
+            print(f"Collection '{COLLECTION_NAME}' is active and ready.")
+            return
+
+        print(f"Collection not found. Initializing new collection: '{COLLECTION_NAME}'...")
+
+        # Create a new collection.
+        # For our initial test, we will specify a mock vector size of 4 dimensions
+        # until we wire up our actual embedding transformer models.
+        qdrant_client.create_collection(
+            collection_name=COLLECTION_NAME,
+            vectors_config=VectorParams(
+                size=4,  # Temporary mock size for architecture validation
+                distance=Distance.COSINE  # Vector distance metric
+            )
+        )
+        print(f"Successfully instantiated collection: '{COLLECTION_NAME}'")
+
+    except Exception as e:
+        print(f"Database Connection Error: Could not talk to Qdrant container: {e}")
+
+
 FINNHUB_KEY = os.getenv("FINNHUB_API_KEY")
 if not FINNHUB_KEY:
     print("Error: FINNHUB_API_KEY variable not found in environment configurations.", file=sys.stderr)
