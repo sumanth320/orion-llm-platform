@@ -1,22 +1,44 @@
 version: '3.8'
 
 services:
-  # The Storage Pillar: Our specialized vector database engine
-  orion-vector-db:
+  qdrant:
     image: qdrant/qdrant:v1.9.0
-    container_name: orion-qdrant-container
+    container_name: orion-vector-db
     ports:
-      - "6333:6333"  # Exposes the main database API port to your Mac
-      - "6334:6334"  # Exposes the internal gRPC port for fast communication
+      - "6333:6333"
+      - "6334:6334"
     volumes:
-      - qdrant_storage_vault:/qdrant/storage
+      - qdrant_storage:/qdrant/storage
     networks:
       - orion-fabric-net
 
-# Declaring the infrastructure frameworks our service relies on
-volumes:
-  qdrant_storage_vault: # Keeps data intact across database restarts
+  airflow:
+    image: apache/airflow:2.9.1-python3.11
+    container_name: orion-orchestrator
+    # Force the container to run under Root (UID 0 / GID 0) to allow docker.sock access
+    user: "0:0"
+    command: standalone
+    env_file:
+      - .env
+    environment:
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+      - AIRFLOW__LOGGING__LOGGING_LEVEL=INFO
+      - _AIRFLOW_WWW_USER_USERNAME=admin
+      - _AIRFLOW_WWW_USER_PASSWORD=admin
+      - _AIRFLOW_WWW_USER_ROLE=Admin
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - orion-fabric-net
+    depends_on:
+      - qdrant
 
 networks:
   orion-fabric-net:
-    driver: bridge # Sets up the isolated virtual router on your host
+    driver: bridge
+
+volumes:
+  qdrant_storage:

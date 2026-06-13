@@ -1,51 +1,16 @@
 import os
 import sys
+import uuid
 from datetime import datetime, timedelta
 import requests
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-
-# 1. Initialize and Validate Local Environment Configuration
-# Load the .env file from the root directory path
-load_dotenv()
-
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams
+from qdrant_client.models import Distance, VectorParams, PointStruct
+from fastembed import TextEmbedding
 
-# Initialize the Qdrant client pointing to your local Docker Compose host port
-# We use port 6333 here for administrative REST API configuration calls
-qdrant_client = QdrantClient(host="localhost", port=6333)
-
-COLLECTION_NAME = "financial_articles"
-
-
-def initialize_vector_store():
-    """Initializes the Qdrant database collection schema if it does not exist."""
-    print(f"Checking vector database for collection: '{COLLECTION_NAME}'...")
-
-    try:
-        # Check if the collection already exists in the container instance
-        if qdrant_client.collection_exists(collection_name=COLLECTION_NAME):
-            print(f"Collection '{COLLECTION_NAME}' is active and ready.")
-            return
-
-        print(f"Collection not found. Initializing new collection: '{COLLECTION_NAME}'...")
-
-        # Create a new collection.
-        # For our initial test, we will specify a mock vector size of 4 dimensions
-        # until we wire up our actual embedding transformer models.
-        qdrant_client.create_collection(
-            collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(
-                size=4,  # Temporary mock size for architecture validation
-                distance=Distance.COSINE  # Vector distance metric
-            )
-        )
-        print(f"Successfully instantiated collection: '{COLLECTION_NAME}'")
-
-    except Exception as e:
-        print(f"Database Connection Error: Could not talk to Qdrant container: {e}")
-
+# 1. Initialize System Configurations
+load_dotenv()
 
 FINNHUB_KEY = os.getenv("FINNHUB_API_KEY")
 if not FINNHUB_KEY:
@@ -53,10 +18,37 @@ if not FINNHUB_KEY:
     sys.exit(1)
 
 BASE_URL = "https://finnhub.io/api/v1"
+COLLECTION_NAME = "financial_articles"
+BATCH_SIZE = int(os.getenv("EMBED_BATCH_SIZE", "8"))
+QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
+QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
+FASTEMBED_MODEL_NAME = os.getenv("FASTEMBED_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
+FASTEMBED_CACHE_DIR = os.getenv("FASTEMBED_CACHE_DIR", "/app/.cache/fastembed")
+
+_qdrant_client = None
+_embedding_model = None
 
 
-# 2. Define Data Structures using Pydantic
-# This guarantees structural integrity and data validation before data storage
+def get_qdrant_client() -> QdrantClient:
+    global _qdrant_client
+    if _qdrant_client is None:
+        _qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+    return _qdrant_client
+
+
+def get_embedding_model() -> TextEmbedding:
+    global _embedding_model
+    if _embedding_model is None:
+        # Load the local embedding model only when it is actually needed.
+        _embedding_model = TextEmbedding(
+            model_name=FASTEMBED_MODEL_NAME,
+            cache_dir=FASTEMBED_CACHE_DIR,
+            threads=1,
+        )
+    return _embedding_model
+
+
+# 2. Data Models
 class FinancialDocument(BaseModel):
     ticker: str
     headline: str
@@ -67,11 +59,33 @@ class FinancialDocument(BaseModel):
     company_industry: str = Field(default="Unknown")
 
 
+# 3. Ingestion Tasks
+def initialize_vector_store():
+    """Initializes the Qdrant database collection schema using production dimensions safely."""
+    print(f"Checking vector database for collection: '{COLLECTION_NAME}'...")
+    try:
+        qdrant_client = get_qdrant_client()
+
+        # Protect existing records if the schema is already established
+        if qdrant_client.collection_exists(collection_name=COLLECTION_NAME):
+            print(f"Collection '{COLLECTION_NAME}' is active and ready. Preserving existing points.")
+            return
+
+        print(f"Initializing production collection: '{COLLECTION_NAME}' (384 Dimensions)...")
+        qdrant_client.create_collection(
+            collection_name=COLLECTION_NAME,
+            vectors_config=VectorParams(
+                size=384,
+                distance=Distance.COSINE
+            )
+        )
+        print(f"Successfully instantiated production collection: '{COLLECTION_NAME}'")
+    except Exception as e:
+        print(f"Database Connection Error: Could not talk to Qdrant container: {e}")
+
 def fetch_company_metadata(ticker: str) -> dict:
-    """Fetches high-level metadata fields used for subsequent vector database filtering."""
     url = f"{BASE_URL}/stock/profile2"
     params = {"symbol": ticker, "token": FINNHUB_KEY}
-
     try:
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
@@ -81,19 +95,14 @@ def fetch_company_metadata(ticker: str) -> dict:
         return {}
 
 
-def fetch_company_news(ticker: str, days_back: int = 7) -> list[FinancialDocument]:
-    """Ingests raw unstructured text articles from the financial API layer."""
+def fetch_company_news(ticker: str, days_back: int = 5) -> list[FinancialDocument]:
     print(f"Initiating financial news ingestion pipeline for symbol: {ticker}")
-
-    # Calculate dates required by Finnhub format (YYYY-MM-DD)
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days_back)
 
-    # Fetch background corporate profile metadata for hybrid structure tracking
     meta = fetch_company_metadata(ticker)
     industry = meta.get("finnhubIndustry", "Unknown")
 
-    # Configure API payload requests parameters
     url = f"{BASE_URL}/company-news"
     params = {
         "symbol": ticker,
@@ -109,7 +118,6 @@ def fetch_company_news(ticker: str, days_back: int = 7) -> list[FinancialDocumen
 
         processed_documents = []
         for art in raw_articles:
-            # Drop entries missing text fields necessary for vector chunk generation
             if not art.get("headline") or not art.get("summary"):
                 continue
 
@@ -124,24 +132,63 @@ def fetch_company_news(ticker: str, days_back: int = 7) -> list[FinancialDocumen
             )
             processed_documents.append(doc)
 
-        print(f"Successfully processed {len(processed_documents)} valid data payloads for {ticker}.")
+        print(f"Successfully processed {len(processed_documents)} valid data payloads from Finnhub.")
         return processed_documents
-
     except requests.exceptions.RequestException as e:
         print(f"Pipeline Execution Failure: Network connection dropped during fetch: {e}", file=sys.stderr)
         return []
 
 
-if __name__ == "__main__":
-    # Test execution trace directly via local runtime engine using a primary tech ticker
-    target_ticker = "NVDA"
-    documents = fetch_company_news(target_ticker, days_back=5)
+def push_documents_to_vector_store(documents: list[FinancialDocument]):
+    """Converts text structures to vectors and performs a batch upsert into Qdrant."""
+    if not documents:
+        print("No documents found to process.")
+        return
 
-    if documents:
-        print(f"\n--- INGESTION VERIFICATION TRACE (Total Document Records: {len(documents)}) ---")
-        # Output a verification breakdown sample from the top record
-        sample = documents[0]
-        print(f"Target Industry Group: {sample.company_industry}")
-        print(f"Extracted Headline   : {sample.headline}")
-        print(f"Document Summary Size: {len(sample.summary)} characters")
-        print(f"Source URL Reference : {sample.url}")
+    qdrant_client = get_qdrant_client()
+    embedding_model = get_embedding_model()
+
+    print(f"Preparing to vectorize and upsert {len(documents)} documents in batches of {BATCH_SIZE}...")
+
+    for start_idx in range(0, len(documents), BATCH_SIZE):
+        batch_docs = documents[start_idx:start_idx + BATCH_SIZE]
+        batch_texts = [f"Headline: {doc.headline}. Summary: {doc.summary}" for doc in batch_docs]
+
+        print(f"Generating embeddings for batch {start_idx // BATCH_SIZE + 1}...")
+        vectors_list = list(embedding_model.embed(batch_texts))
+
+        qdrant_points = []
+        for idx, doc in enumerate(batch_docs):
+            qdrant_points.append(
+                PointStruct(
+                    id=str(uuid.uuid4()),
+                    vector=vectors_list[idx].tolist(),
+                    payload={
+                        "ticker": doc.ticker,
+                        "headline": doc.headline,
+                        "summary": doc.summary,
+                        "source": doc.source,
+                        "url": doc.url,
+                        "published_at": doc.published_at.isoformat(),
+                        "company_industry": doc.company_industry,
+                    },
+                )
+            )
+
+        print(f"Upserting batch {start_idx // BATCH_SIZE + 1} into collection '{COLLECTION_NAME}'...")
+        qdrant_client.upsert(collection_name=COLLECTION_NAME, points=qdrant_points)
+
+    print("Database sync complete. Points stored successfully.")
+
+
+if __name__ == "__main__":
+    # Ensure our vector schema is active and correct
+    initialize_vector_store()
+
+    # Ingest historical text logs from Finnhub API
+    target_ticker = "NVDA"
+    documents_payload = fetch_company_news(target_ticker, days_back=3)
+
+    # Vectorize and push to permanent storage
+    if documents_payload:
+        push_documents_to_vector_store(documents_payload)
