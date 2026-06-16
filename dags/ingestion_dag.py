@@ -21,16 +21,18 @@ with DAG(
     description='Orchestrates the local containerized Finnhub ingestion and Qdrant vectorization sync',
     schedule_interval='@daily',  # Runs automatically once every day
     catchup=False,
+    is_paused_upon_creation=False,
     tags=['ingestion', 'rag', 'qdrant'],
 ) as dag:
 
+    # Define the isolated container execution task
     # Define the isolated container execution task
     run_ingestion_container = DockerOperator(
         task_id='execute_vector_ingestion',
         image='orion-ingestion:v1',
         api_version='auto',
         auto_remove=True,
-        force_pull=False,  # Image is built locally - do NOT try to pull from Docker Hub
+        force_pull=False,
         command='python ingestion/ingestion_pipeline.py',
         docker_url='unix://var/run/docker.sock',
         network_mode='orion-llm-platform_orion-fabric-net',
@@ -43,10 +45,10 @@ with DAG(
             'FASTEMBED_CACHE_DIR': '/app/.cache/fastembed',
             'HF_HUB_DOWNLOAD_TIMEOUT': '120',
             'HF_HUB_ETAG_TIMEOUT': '60',
-            'OMP_NUM_THREADS': '1',  # <-- Reduces memory footprint during tensor allocation
-            'MKL_NUM_THREADS': '1'  # <-- Restricts math kernel library overhead
+            'OMP_NUM_THREADS': '1',
+            'MKL_NUM_THREADS': '1',
+            'TARGET_TICKER': "{{ dag_run.conf.get('ticker', 'NVDA') }}"
         },
         mount_tmp_dir=False,
         mem_limit=os.getenv('INGESTION_MEM_LIMIT', '4g'),
     )
-

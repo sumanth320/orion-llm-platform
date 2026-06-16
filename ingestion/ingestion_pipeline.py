@@ -185,8 +185,11 @@ if __name__ == "__main__":
     # Ensure our vector schema is active and correct
     initialize_vector_store()
 
-    # Ingest historical text logs from Finnhub API
-    target_ticker = "NVDA"
+    # Dynamic target acquisition via environment injection
+    target_ticker = os.getenv("TARGET_TICKER", "NVDA").upper().strip()
+    print(f"Starting target collection track for stock symbol: {target_ticker}")
+
+    # Ingest historical text logs from Finnhub API for the designated target
     documents_payload = fetch_company_news(target_ticker, days_back=3)
 
     # Vectorize and push to permanent storage
